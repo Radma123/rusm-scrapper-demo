@@ -1,0 +1,60 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.elc
+.Python
+env/
+venv/
+ENV/
+.env
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+
+# --- Специфичное для твоего парсера (Scraping & Camoufox) ---
+# Логи и скриншоты ошибок, которые генерируют твои скрипты
+error_screenshot.png
+ozon_error_screenshot.png
+ozon_antibot_screenshot.png
+*.log
+*.png
+*.jpeg
+*.jpg
+
+# Кэш браузеров Playwright / Camoufox (если они создаются локально в проекте)
+.playwright/
+.camoufox/
+downloads/
+playwright-artifacts/
+
+# --- Настройки редакторов кода и IDE ---
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# --- Системные файлы (Обязательно для работы Windows + Mac) ---
+# Файлы иконок папок мака, которые вечно лезут в гит при работе на MacBook Air
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.Trashes
+
+# Системные файлы Windows
+Thumbs.db
+Ehthumbs.db
+Desktop.ini
+
+# --- Конфиденциальные данные ---
+# Если решишь хранить токены или пароли в .env файлах
+.env
+.env.local
+config.local.py
