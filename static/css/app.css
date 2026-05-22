@@ -249,7 +249,7 @@ main {
 
 .card__top {
   display: flex;
-  align-items: flex-start;
+  flex-direction: column;
   gap: 0.5rem;
   margin-bottom: 0.6rem;
 }

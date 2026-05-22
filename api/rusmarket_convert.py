@@ -31,7 +31,7 @@ def _desc_from_block(block: dict) -> str | None:
 
 
 def availability_to_results(items: list[dict]) -> list[ReturnResult]:
-    """Преобразует ответ Rusmarket API в список ReturnResult."""
+    """Преобразует ответ Rusmarket API в список ReturnResult с учетом аналогов."""
     out: list[ReturnResult] = []
     for item in items:
         if not isinstance(item, dict):
@@ -39,6 +39,7 @@ def availability_to_results(items: list[dict]) -> list[ReturnResult]:
         serial = str(item.get("serial") or "").strip()
         name = (item.get("name") or serial or "Товар").strip()
 
+        # 1. Обработка локальных остатков
         local = item.get("local")
         if isinstance(local, dict) and local:
             out.append(
@@ -52,11 +53,14 @@ def availability_to_results(items: list[dict]) -> list[ReturnResult]:
                 )
             )
 
+        # 2. Обработка внешних поставщиков и их аналогов
         external = item.get("external")
         if isinstance(external, dict):
             for ext_name, ext_data in external.items():
                 if not isinstance(ext_data, dict) or not ext_data:
                     continue
+                
+                # Добавляем сам оригинальный товар от внешнего поставщика
                 out.append(
                     ReturnResult(
                         title=f"{name} — {ext_name}",
@@ -68,6 +72,41 @@ def availability_to_results(items: list[dict]) -> list[ReturnResult]:
                     )
                 )
 
+                # --- НОВЫЙ БЛОК: Обработка аналогов ---
+                analogs = ext_data.get("analogs")
+                if isinstance(analogs, list):
+                    for analog in analogs:
+                        if not isinstance(analog, dict):
+                            continue
+                        
+                        # Берем артикул аналога, если его нет — используем оригинальный
+                        analog_serial = str(analog.get("part_number") or serial).strip()
+                        # Берем имя аналога. Если имени нет, пишем "Аналог <артикул>"
+                        analog_name = (analog.get("name") or f"Аналог {analog_serial}").strip()
+                        
+                        # Формируем красивое описание, например с указанием статуса замены
+                        desc_parts = []
+                        base_desc = _desc_from_block(analog)
+                        if base_desc:
+                            desc_parts.append(base_desc)
+                        if analog.get("replacement_status"):
+                            desc_parts.append(str(analog["replacement_status"]))
+                        
+                        description = "; ".join(desc_parts) or f"Аналог для артикула: {serial}"
+
+                        out.append(
+                            ReturnResult(
+                                title=f"[Аналог] {analog_name} — {ext_name}",
+                                link=_link_from_block(analog, analog_serial),
+                                price=_price_from_block(analog),
+                                description=description,
+                                photo_url=analog.get("photo_url") or analog.get("image"),
+                                source="rusmarket",
+                            )
+                        )
+                # --------------------------------------
+
+        # 3. Если ничего не нашли
         if not local and (not external or not isinstance(external, dict)):
             out.append(
                 ReturnResult(

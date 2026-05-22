@@ -9,21 +9,33 @@ _PHOTO_SELECTORS = (
     'li[data-marker="slider-image/img"] img',
     'img[itemprop="image"]',
     'a[data-marker="item-photo"] img',
+    # Запасной селектор на случай частых изменений верстки Avito
+    '[class*="photo-slider"] img'
 )
 
-
 def _img_url_from_element(img_element) -> str | None:
-    for attr in ("src", "data-src", "data-url", "data-lazy-src"):
-        raw = img_element.get_attribute(attr)
-        url = normalize_photo_url(raw)
-        if url:
-            return url
+    # 1. В первую очередь берем srcset, там часто лежит реальная картинка до ленивой загрузки
     srcset = img_element.get_attribute("srcset")
     if srcset:
+        # Например: "url1 1x, url2 2x", берем первую ссылку
         first = srcset.split(",")[0].strip().split(" ")[0]
-        return normalize_photo_url(first)
-    return None
+        url = normalize_photo_url(first)
+        if url and "1x1" not in url.lower() and not url.startswith("data:"):
+            return url
 
+    # 2. Проверяем data-атрибуты, затем src. 
+    # Это важно, так как в src часто лежит прозрачный пиксель (заглушка)
+    for attr in ("data-src", "data-url", "data-lazy-src", "src"):
+        raw = img_element.get_attribute(attr)
+        if not raw:
+            continue
+        
+        url = normalize_photo_url(raw)
+        # Отсекаем пиксели 1x1 и base64-заглушки
+        if url and "1x1" not in url.lower() and not url.startswith("data:"):
+            return url
+            
+    return None
 
 def _avito_photo_url(item) -> str | None:
     fallback: str | None = None
@@ -32,18 +44,21 @@ def _avito_photo_url(item) -> str | None:
             url = _img_url_from_element(img)
             if not url:
                 continue
+                
             lower = url.lower()
             if any(
                 x in lower
-                for x in ("/avatar", "/icon", "/logo", "sprite", "1x1", "avatars.avito")
+                for x in ("/avatar", "/icon", "/logo", "sprite", "avatars.avito")
             ):
                 continue
+                
             if "img.avito.st" in lower or "avito.st/image" in lower:
                 return url
+                
             if fallback is None:
                 fallback = url
+                
     return fallback
-
 
 def avito_scrape(query: str, browser):
     page = browser.new_page()
@@ -56,13 +71,15 @@ def avito_scrape(query: str, browser):
         page.goto(url, wait_until="domcontentloaded", timeout=30000)
         print("Страница AVITO загружена. Ожидаем рендеринга товаров...")
 
-        time.sleep(random.uniform(2.0, 3.0))
+        # Используем встроенные методы ожидания Playwright
+        page.wait_for_timeout(random.uniform(2000, 3000))
 
-        for i in range(1, 4):
-            page.evaluate(
-                f"window.scrollTo({{top: (document.body.scrollHeight / 3) * {i}, behavior: 'smooth'}});"
-            )
-            time.sleep(random.uniform(1.0, 1.8))
+        # ИСПРАВЛЕНИЕ СКРОЛЛА: 
+        # Скроллим мелкими шагами, чтобы гарантированно стриггерить ленивую загрузку (IntersectionObserver)
+        # для каждой карточки товара.
+        for _ in range(12):
+            page.evaluate("window.scrollBy({top: 400, behavior: 'smooth'});")
+            page.wait_for_timeout(random.uniform(300, 600))
 
         page.wait_for_selector('div[data-marker="item"]', timeout=15000)
         items = page.query_selector_all('div[data-marker="item"]')
