@@ -106,7 +106,7 @@ def ozon_scrape(query: str, browser):
     page = browser.new_page()
     page.set_viewport_size({"width": 1280, "height": 900})
 
-    page.on("pageerror", lambda exc: print(f"Игнорируем ошибку страницы JS: {exc}"))
+    page.on("pageerror", lambda exc: None)  # Silently ignore JS errors
 
     clean_query = query.strip()
     search_url = (
@@ -114,26 +114,32 @@ def ozon_scrape(query: str, browser):
     )
 
     try:
-        page.goto("https://www.ozon.ru/", wait_until="domcontentloaded", timeout=30000)
-        time.sleep(random.uniform(1.5, 2.5))
+        try:
+            page.goto("https://www.ozon.ru/", wait_until="domcontentloaded", timeout=30000)
+            time.sleep(random.uniform(1.5, 2.5))
 
-        page.goto(search_url, wait_until="domcontentloaded", timeout=30000)
-        print("Страница Ozon загружена. Ожидаем рендеринга товаров...")
+            page.goto(search_url, wait_until="domcontentloaded", timeout=30000)
+            print("Страница Ozon загружена. Ожидаем рендеринга товаров...")
 
-        time.sleep(random.uniform(2.0, 3.0))
+            time.sleep(random.uniform(2.0, 3.0))
+        except Exception as e:
+            print(f"Ошибка загрузки страницы Ozon: {e}")
+            return []
 
         title = page.title()
         if "Antibot" in title or "ограничен" in title.lower():
             print("Ozon показал антибот-страницу, результаты недоступны.")
             page.screenshot(path="ozon_antibot_screenshot.png")
-            page.close()
             return []
 
         for i in range(1, 4):
-            page.evaluate(
-                f"window.scrollTo({{top: (document.body.scrollHeight / 3) * {i}, behavior: 'smooth'}});"
-            )
-            time.sleep(random.uniform(1.0, 1.8))
+            try:
+                page.evaluate(
+                    f"window.scrollTo({{top: (document.body.scrollHeight / 3) * {i}, behavior: 'smooth'}});"
+                )
+                time.sleep(random.uniform(1.0, 1.8))
+            except:
+                break
 
         results_root = (
             page.query_selector('div[data-widget="searchResultsV2"]')
@@ -141,8 +147,17 @@ def ozon_scrape(query: str, browser):
         )
         scope = results_root or page
 
-        scope.wait_for_selector('a[href*="/product/"]', timeout=15000, state="attached")
-        links = scope.query_selector_all('a[href*="/product/"]')
+        # Try to wait for selector, but catch connection errors
+        try:
+            scope.wait_for_selector('a[href*="/product/"]', timeout=8000, state="attached")
+        except Exception as e:
+            print(f"Timeout ожидания селектора Ozon: {e}")
+            links = scope.query_selector_all('a[href*="/product/"]')
+            if not links:
+                return []
+        else:
+            links = scope.query_selector_all('a[href*="/product/"]')
+
         print(f"Найдено ссылок на товары: {len(links)}")
 
         results = []
@@ -222,11 +237,17 @@ def ozon_scrape(query: str, browser):
                 continue
 
         print(f"Собрано уникальных товаров: {len(results)}")
-        page.close()
         return results
 
     except Exception as e:
-        print(f"Произошла ошибка при парсинге: {e}")
-        page.screenshot(path="ozon_error_screenshot.png")
-        page.close()
+        print(f"Произошла ошибка при парсинге Ozon: {e}")
+        try:
+            page.screenshot(path="ozon_error_screenshot.png")
+        except:
+            pass
         return []
+    finally:
+        try:
+            page.close()
+        except:
+            pass

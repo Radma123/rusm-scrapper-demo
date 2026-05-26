@@ -68,21 +68,33 @@ def avito_scrape(query: str, browser):
     url = f"https://www.avito.ru/bashkortostan?q={clean_query}"
 
     try:
-        page.goto(url, wait_until="domcontentloaded", timeout=30000)
-        print("Страница AVITO загружена. Ожидаем рендеринга товаров...")
+        try:
+            page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            print("Страница AVITO загружена. Ожидаем рендеринга товаров...")
 
-        # Используем встроенные методы ожидания Playwright
-        page.wait_for_timeout(random.uniform(2000, 3000))
+            page.wait_for_timeout(random.uniform(2000, 3000))
 
-        # ИСПРАВЛЕНИЕ СКРОЛЛА: 
-        # Скроллим мелкими шагами, чтобы гарантированно стриггерить ленивую загрузку (IntersectionObserver)
-        # для каждой карточки товара.
-        for _ in range(12):
-            page.evaluate("window.scrollBy({top: 400, behavior: 'smooth'});")
-            page.wait_for_timeout(random.uniform(300, 600))
+            for _ in range(12):
+                try:
+                    page.evaluate("window.scrollBy({top: 400, behavior: 'smooth'});")
+                    page.wait_for_timeout(random.uniform(300, 600))
+                except:
+                    break
+        except Exception as e:
+            print(f"Ошибка загрузки страницы AVITO: {e}")
+            return []
 
-        page.wait_for_selector('div[data-marker="item"]', timeout=15000)
-        items = page.query_selector_all('div[data-marker="item"]')
+        # Try to wait for selector, but catch connection errors
+        try:
+            page.wait_for_selector('div[data-marker="item"]', timeout=8000)
+        except Exception as e:
+            print(f"Timeout ожидания селектора AVITO: {e}")
+            items = page.query_selector_all('div[data-marker="item"]')
+            if not items:
+                return []
+        else:
+            items = page.query_selector_all('div[data-marker="item"]')
+
         print(f"Найдено объявлений на странице: {len(items)}")
 
         results = []
@@ -142,11 +154,17 @@ def avito_scrape(query: str, browser):
                 print(f"Ошибка парсинга карточки №{index + 1}: {e}")
                 continue
 
-        page.close()
         return results
 
     except Exception as e:
-        print(f"Произошла ошибка при парсинге: {e}")
-        page.screenshot(path="error_screenshot.png")
-        page.close()
+        print(f"Произошла ошибка при парсинге AVITO: {e}")
+        try:
+            page.screenshot(path="error_screenshot.png")
+        except:
+            pass
         return []
+    finally:
+        try:
+            page.close()
+        except:
+            pass

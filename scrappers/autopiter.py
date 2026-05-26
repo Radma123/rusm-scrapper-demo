@@ -14,29 +14,45 @@ def autopiter_scrape(query: str, browser):
     page = browser.new_page()
     page.set_viewport_size({"width": 1280, "height": 900})
 
-    page.on("pageerror", lambda exc: print(f"Игнорируем ошибку страницы JS: {exc}"))
+    page.on("pageerror", lambda exc: None)  # Silently ignore JS errors
 
     clean_query = query.strip()
     url = f"https://autopiter.ru/goods/{quote(clean_query)}"
 
     try:
-        page.goto(url, wait_until="domcontentloaded", timeout=30000)
-        print("Страница Автопитер загружена. Ожидаем рендеринга товаров...")
+        try:
+            page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            print("Страница Автопитер загружена. Ожидаем рендеринга товаров...")
 
-        time.sleep(random.uniform(2.0, 3.0))
+            time.sleep(random.uniform(2.0, 3.0))
 
-        for i in range(1, 4):
-            page.evaluate(
-                f"window.scrollTo({{top: (document.body.scrollHeight / 3) * {i}, behavior: 'smooth'}});"
+            for i in range(1, 4):
+                try:
+                    page.evaluate(
+                        f"window.scrollTo({{top: (document.body.scrollHeight / 3) * {i}, behavior: 'smooth'}});"
+                    )
+                    time.sleep(random.uniform(1.0, 1.8))
+                except:
+                    break
+        except Exception as e:
+            print(f"Ошибка загрузки страницы Автопитер: {e}")
+            return []
+
+        # Try to wait for selector, but catch connection errors
+        try:
+            page.wait_for_selector(
+                'div[itemtype="http://schema.org/Product"]',
+                timeout=8000,
+                state="attached"
             )
-            time.sleep(random.uniform(1.0, 1.8))
+        except Exception as e:
+            print(f"Timeout ожидания селектора Автопитер: {e}")
+            items = page.query_selector_all('div[itemtype="http://schema.org/Product"]')
+            if not items:
+                return []
+        else:
+            items = page.query_selector_all('div[itemtype="http://schema.org/Product"]')
 
-        page.wait_for_selector(
-            'div[itemtype="http://schema.org/Product"]',
-            timeout=15000,
-            state = "attached"
-        )
-        items = page.query_selector_all('div[itemtype="http://schema.org/Product"]')
         print(f"Найдено позиций на странице: {len(items)}")
 
         results = []
@@ -128,11 +144,17 @@ def autopiter_scrape(query: str, browser):
                 print(f"Ошибка парсинга карточки №{index + 1}: {e}")
                 continue
 
-        page.close()
         return results
 
     except Exception as e:
-        print(f"Произошла ошибка при парсинге: {e}")
-        page.screenshot(path="autopiter_error_screenshot.png")
-        page.close()
+        print(f"Произошла ошибка при парсинге Автопитер: {e}")
+        try:
+            page.screenshot(path="autopiter_error_screenshot.png")
+        except:
+            pass
         return []
+    finally:
+        try:
+            page.close()
+        except:
+            pass
