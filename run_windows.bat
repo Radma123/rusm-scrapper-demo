@@ -31,11 +31,24 @@ if %errorlevel% neq 0 (
     exit /b
 )
 
-:: 4. Открываем локальный сайт в браузере с задержкой в 2 секунды
-echo [4/4] Подготовка к открытию браузера...
+:: 4. Проверка обновлений из git
+echo [4/4] Проверка обновлений...
+git fetch origin > nul 2>&1
+for /f %%i in ('git rev-parse HEAD') do set LOCAL=%%i
+for /f %%i in ('git rev-parse origin/master') do set REMOTE=%%i
+
+if not "%LOCAL%"=="%REMOTE%" (
+    echo [Обновление] Найдено обновление, обновляю...
+    git pull origin master
+    echo [Обновление] Завершено! Перезапускаю...
+    python -m pip install -r requirements.txt > nul 2>&1
+)
+
+:: 5. Открываем локальный сайт в браузере с задержкой в 2 секунды
+echo [5/5] Подготовка к открытию браузера...
 start /b cmd /c "timeout /t 2 >nul && start http://localhost:6767"
 
-:: 5. Запускаем основной скрипт
+:: 6. Запускаем основной скрипт
 echo  Запуск сервера Uvicorn...
 echo ---------------------------------------------------
 python main.py

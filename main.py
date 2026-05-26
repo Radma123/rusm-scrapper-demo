@@ -76,7 +76,8 @@ def _finalize_results(results: list[ReturnResult]) -> list[ReturnResult]:
             continue
         photo = normalize_photo_url(item.photo_url)
         cleaned.append(item.model_copy(update={"photo_url": photo}))
-        ai_filtered = ai_filter(cleaned)
+
+    ai_filtered = ai_filter(cleaned)
 
     return sorted(ai_filtered, key=lambda r: r.price)
 

@@ -33,11 +33,24 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# 4. Открываем браузер через 2 секунды в фоновом режиме
-echo "[4/4] Подготовка к открытию браузера..."
+# 4. Проверка обновлений из git
+echo "[4/5] Проверка обновлений..."
+git fetch origin > /dev/null 2>&1
+LOCAL=$(git rev-parse HEAD)
+REMOTE=$(git rev-parse origin/master 2>/dev/null || echo "$LOCAL")
+
+if [ "$LOCAL" != "$REMOTE" ]; then
+    echo "[Обновление] Найдено обновление, обновляю..."
+    git pull origin master
+    echo "[Обновление] Завершено! Переустанавливаю зависимости..."
+    pip install -r requirements.txt > /dev/null 2>&1
+fi
+
+# 5. Открываем браузер через 2 секунды в фоновом режиме
+echo "[5/5] Подготовка к открытию браузера..."
 (sleep 2 && open "http://localhost:6767") &
 
-# 5. Запускаем проект через python из виртуального окружения
+# 6. Запускаем проект через python из виртуального окружения
 echo " Запуск сервера Uvicorn..."
 echo "---------------------------------------------------"
 python3 main.py
