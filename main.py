@@ -14,6 +14,7 @@ from models.result import ReturnResult, normalize_photo_url
 from scrappers.autopiter import autopiter_scrape
 from scrappers.avito import avito_scrape
 from scrappers.ozon import ozon_scrape
+from tools.ai_filter.filter import ai_filter
 
 ROOT = Path(__file__).resolve().parent
 app = FastAPI(title="RusM Scrapper")
@@ -75,19 +76,22 @@ def _finalize_results(results: list[ReturnResult]) -> list[ReturnResult]:
             continue
         photo = normalize_photo_url(item.photo_url)
         cleaned.append(item.model_copy(update={"photo_url": photo}))
-    return sorted(cleaned, key=lambda r: r.price)
+        ai_filtered = ai_filter(cleaned)
+
+    return sorted(ai_filtered, key=lambda r: r.price)
 
 
 @app.get("/")
-def index_page():
+def index_page() -> FileResponse:
     return FileResponse(ROOT / "templates" / "index.html")
 
 
 @app.get("/api/search")
-def api_search(q: str = Query(..., min_length=1)):
+def api_search(q: str = Query(..., min_length=1)) -> list[ReturnResult]:
     try:
         results = search_all(q)
-        return [r.model_dump() for r in results]
+        # return [r.model_dump() for r in results] // использовать для производительности
+        return results
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
