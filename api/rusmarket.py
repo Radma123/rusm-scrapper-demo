@@ -1,9 +1,7 @@
 from typing import Any, Dict, List, Optional
 
 import requests
-
-from config import RUSMARKET_API_URL, RUSMARKET_TIMEOUT
-
+from config import settings
 _DEFAULT_USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -42,8 +40,8 @@ def get_products_availability(
     if sources is None:
         sources = ["local", "external"]
 
-    url = api_url or RUSMARKET_API_URL
-    request_timeout = timeout if timeout is not None else RUSMARKET_TIMEOUT
+    url = api_url or settings.RUSMARKET_API_URL
+    request_timeout = timeout if timeout is not None else settings.RUSMARKET_TIMEOUT
 
     payload: Dict[str, Any] = {
         "products": products,

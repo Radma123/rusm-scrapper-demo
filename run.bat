@@ -6,7 +6,7 @@ echo ===================================================
 
 :: 1. Проверяем и создаем виртуальное окружение
 if not exist ".venv" (
-    echo [1/4] Папка .venv не найдена. Создаем изолированное окружение...
+    echo [1/5] Папка .venv не найдена. Создаем изолированное окружение...
     python -m venv .venv
     if %errorlevel% neq 0 (
         echo [Ошибка] Не удалось создать виртуальное окружение. Проверьте установку Python.
@@ -14,15 +14,15 @@ if not exist ".venv" (
         exit /b
     )
 ) else (
-    echo [1/4] Виртуальное окружение .venv уже существует.
+    echo [1/5] Виртуальное окружение .venv уже существует.
 )
 
 :: 2. Активируем venv
-echo [2/4] Активация виртуального окружения...
+echo [2/5] Активация виртуального окружения...
 call .venv\Scripts\activate.bat
 
 :: 3. Обновляем pip и ставим пакеты внутри venv
-echo [3/4] Проверка и установка пакетов из requirements.txt...
+echo [3/5] Проверка и установка пакетов из requirements.txt...
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 if %errorlevel% neq 0 (
@@ -32,16 +32,18 @@ if %errorlevel% neq 0 (
 )
 
 :: 4. Проверка обновлений из git
-echo [4/4] Проверка обновлений...
+echo [4/5] Проверка обновлений...
 git fetch origin > nul 2>&1
-for /f %%i in ('git rev-parse HEAD') do set LOCAL=%%i
-for /f %%i in ('git rev-parse origin/master') do set REMOTE=%%i
+for /f %%i in ('git rev-parse HEAD 2^>nul') do set LOCAL=%%i
+for /f %%i in ('git rev-parse origin/master 2^>nul') do set REMOTE=%%i
 
-if not "%LOCAL%"=="%REMOTE%" (
-    echo [Обновление] Найдено обновление, обновляю...
-    git pull origin master
-    echo [Обновление] Завершено! Перезапускаю...
-    python -m pip install -r requirements.txt > nul 2>&1
+if defined LOCAL if defined REMOTE (
+    if not "%LOCAL%"=="%REMOTE%" (
+        echo [Обновление] Найдено обновление, обновляю...
+        git pull origin master
+        echo [Обновление] Завершено! Переустанавливаю зависимости...
+        python -m pip install -r requirements.txt > nul 2>&1
+    )
 )
 
 :: 5. Открываем локальный сайт в браузере с задержкой в 2 секунды

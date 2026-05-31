@@ -1,4 +1,4 @@
-from models.result import ReturnResult, parse_price_rub
+from models import ReturnResult, parse_price_rub
 
 
 def _price_from_block(block: dict) -> int:

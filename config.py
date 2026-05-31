@@ -1,24 +1,46 @@
-import os
 from pathlib import Path
 from openai import OpenAI
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from dotenv import load_dotenv
+ROOT_DIR = Path(__file__).resolve().parent
 
-load_dotenv(Path(__file__).resolve().parent / ".env")
 
-# --- Rusmarket portal ---
-RUSMARKET_API_URL = os.getenv(
-    "RUSMARKET_API_URL",
-    "https://rusmarket.top/api/v1/products/availability",
+class Settings(BaseSettings):
+    """
+    Класс настроек приложения с использованием Pydantic Settings.
+    Автоматически загружает переменные из .env файла и валидирует типы.
+    """
+
+    model_config = SettingsConfigDict(
+        env_file=ROOT_DIR / ".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    # --- Rusmarket ---
+    RUSMARKET_API_URL: str
+    RUSMARKET_TIMEOUT: float
+
+    # --- FastAPI Server ---
+    API_HOST: str
+    API_PORT: int
+
+    # --- AI Filter settings ---
+    HERMES_API_KEY: str
+    HERMES_BASE_URL: str
+    MODEL: str
+    
+    # "transformer" (ML sentence_transformers) или "openai" (OpenAI LLM)
+    AI_FILTER_TYPE: str
+
+
+# Инициализируем настройки
+settings = Settings()
+
+
+
+# Глобальный клиент OpenAI
+ai_client = OpenAI(
+    base_url=settings.HERMES_BASE_URL,
+    api_key=settings.HERMES_API_KEY
 )
-RUSMARKET_TIMEOUT = float(os.getenv("RUSMARKET_TIMEOUT", "30"))
-
-
-# --- HTTP API ---
-API_HOST = os.getenv("API_HOST", "0.0.0.0")
-API_PORT = int(os.getenv("API_PORT", "6767"))
-
-
-# ai
-ai_client = OpenAI(base_url="https://hermes.ai.unturf.com/v1", api_key="56e8b753164e17ab9f7df285fabd2f0eaacbcaa9b17afb20")
-MODEL = "adamo1139/Hermes-3-Llama-3.1-8B-FP8-Dynamic"

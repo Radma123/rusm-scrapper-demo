@@ -19,7 +19,7 @@ class FilterTest(unittest.TestCase):
         fake_sentence_transformers.SentenceTransformer = MagicMock(return_value=cls.mock_model)
         sys.modules['sentence_transformers'] = fake_sentence_transformers
 
-        cls.filter_mod = importlib.import_module('tools.ai_filter.filter')
+        cls.transformer_mod = importlib.import_module('tools.ai_filter.transformer_filter')
 
     @classmethod
     def tearDownClass(cls):
@@ -36,7 +36,7 @@ class FilterTest(unittest.TestCase):
             price=100,
         )
 
-        self.assertTrue(self.filter_mod.regex_filter(item))
+        self.assertTrue(self.transformer_mod.regex_filter(item))
 
     def test_regex_filter_accepts_catalog_number_in_description(self):
         item = ReturnResult(
@@ -46,7 +46,7 @@ class FilterTest(unittest.TestCase):
             price=100,
         )
 
-        self.assertTrue(self.filter_mod.regex_filter(item))
+        self.assertTrue(self.transformer_mod.regex_filter(item))
 
     def test_regex_filter_rejects_non_catalog_text(self):
         item = ReturnResult(
@@ -56,7 +56,7 @@ class FilterTest(unittest.TestCase):
             price=100,
         )
 
-        self.assertFalse(self.filter_mod.regex_filter(item))
+        self.assertFalse(self.transformer_mod.regex_filter(item))
 
     def test_ai_filter_keeps_relevant_or_regex_matched_items(self):
         item_relevant = ReturnResult(
@@ -78,15 +78,17 @@ class FilterTest(unittest.TestCase):
             price=50,
         )
 
-        with patch.object(self.filter_mod, 'is_relevant', side_effect=[True, False, False]):
-            filtered = self.filter_mod.ai_filter([
+        # Создаем инстанс фильтра
+        tf = self.transformer_mod.TransformerFilter()
+
+        with patch.object(self.transformer_mod, 'is_relevant', side_effect=[True, False, False]):
+            filtered = tf.filter([
                 item_relevant,
                 item_with_article,
                 item_irrelevant,
             ])
 
         self.assertEqual(filtered, [item_relevant, item_with_article])
-
         self.assertNotIn(item_irrelevant, filtered)
 
 

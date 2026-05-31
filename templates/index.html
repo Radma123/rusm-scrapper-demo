@@ -3,81 +3,28 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <a style="text-decoration: none;color: white;" href="/"><h1>RusM Scrapper</h1></a>
+  <title>RusM Scrapper — Поиск запчастей для сельхозтехники</title>
+  <meta name="description" content="Интеллектуальный поиск запчастей на Rusmarket, Avito, Ozon и Автопитер" />
   <link rel="stylesheet" href="/static/css/app.css" />
-  
-  <style>
-    /* --- Стили для увеличения и яркости источников --- */
-    
-    /* Общий контейнер плашки источника */
-    .source {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;                  /* Больше отступ между иконкой и текстом */
-      padding: 6px 14px;          /* Увеличенные внутренние отступы для объема */
-      background-color: #f1f3f5;  /* Приятный светлый фон по умолчанию */
-      border-radius: 8px;         /* Скругление углов */
-      transition: all 0.2s ease;
-      border: 1px solid #e9ecef;
-    }
-
-    /* Выделение нашей родной платформы Rusmarket ярким синим цветом */
-    .source--rusmarket {
-      background-color: #0056b3 !important; /* Яркий синий цвет */
-      border-color: #004085 !important;
-      box-shadow: 0 4px 12px rgba(0, 86, 179, 0.3); /* Эффект свечения */
-    }
-
-    /* Картинки-логотипы (размер увеличен с ~16px до 26px) */
-    .source-icon {
-      width: 26px;  
-      height: 26px;
-      object-fit: contain;
-      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.08));
-    }
-
-    /* Текстовая заглушка для площадок без иконок (например, Автопитер) */
-    .source-badge {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 26px;
-      height: 26px;
-      background-color: #6c757d;
-      color: #fff;
-      font-size: 11px;
-      font-weight: bold;
-      border-radius: 6px;
-    }
-
-    /* Текст внутри плашки */
-    .source-label {
-      font-size: 16px !important;    /* Шрифт крупнее */
-      font-weight: 700 !important;    /* Жирное начертание */
-      color: #212529 !important;      /* Темный контрастный цвет по умолчанию */
-      margin: 0;
-      letter-spacing: 0.3px;
-    }
-
-    /* Белый текст для названия Rusmarket на синем фоне */
-    .source--rusmarket .source-label {
-      color: #ffffff !important;
-    }
-  </style>
 </head>
 <body>
   <header class="header">
+    <a href="/">
+      <h1>RusM Scrapper</h1>
+    </a>
+    
     <form id="search-form" class="search-bar" role="search">
       <input
         id="query"
         type="search"
         name="q"
-        placeholder="Артикул или название…"
+        placeholder="Артикул или название запчасти…"
         autocomplete="off"
         required
       />
       <button type="submit" id="submit-btn">Найти</button>
     </form>
+    
     <div class="toolbar">
       <div class="toolbar__group">
         <span class="toolbar__label">Вид:</span>
@@ -111,187 +58,6 @@
     <div id="results" class="results results--grid"></div>
   </main>
 
-  <script>
-    // Если хотите проверить заглушку, можете установить rusmarket: null
-    const ICONS = {
-      avito: "/static/icons/avito.png",
-      ozon: "/static/icons/ozon.png",
-      rusmarket: "/static/icons/rusmarket.svg", 
-      autopiter: null,
-    };
-
-    const SOURCE_LABELS = {
-      avito: "Avito",
-      ozon: "Ozon",
-      rusmarket: "Rusmarket",
-      autopiter: "Автопитер",
-    };
-
-    const PLATFORMS = ["rusmarket", "avito", "ozon", "autopiter"];
-
-    const form = document.getElementById("search-form");
-    const queryInput = document.getElementById("query");
-    const resultsEl = document.getElementById("results");
-    const statusEl = document.getElementById("status");
-    const submitBtn = document.getElementById("submit-btn");
-    const viewRadios = document.querySelectorAll('input[name="view"]');
-    const sortEl = document.getElementById("sort");
-
-    let cachedItems = [];
-
-    function formatPrice(n) {
-      return new Intl.NumberFormat("ru-RU").format(n) + " ₽";
-    }
-
-    function isValidPhotoUrl(url) {
-      if (!url) return false;
-      try {
-        const u = new URL(url);
-        return u.protocol === "http:" || u.protocol === "https:";
-      } catch {
-        return false;
-      }
-    }
-
-    function escapeHtml(s) {
-      const d = document.createElement("div");
-      d.textContent = s;
-      return d.innerHTML;
-    }
-
-    function sourceBlock(source) {
-      const label = SOURCE_LABELS[source] || source;
-      const src = ICONS[source];
-      let icon = src
-        ? `<img class="source-icon" src="${src}" alt="${label}" />`
-        : `<span class="source-badge">${label.slice(0, 2).toUpperCase()}</span>`;
-      
-      const isOurPlatform = source === "rusmarket" ? " source--rusmarket" : "";
-
-      // ИСПРАВЛЕНИЕ: Обернули ссылку в HTML-тег <img>
-      if (isOurPlatform && !src) {
-        icon = `<img class="source-icon" src="/static/icons/rusmarket-none.webp" alt="Rusmarket" />`;
-      }
-
-      return `<div class="source${isOurPlatform}">${icon}<h2 class="source-label">${escapeHtml(label)}</h2></div>`;
-    }
-
-    function cardHtml(item, { showSource = true } = {}) {
-      const photo = isValidPhotoUrl(item.photo_url)
-        ? `<img class="card__img" src="${escapeHtml(item.photo_url)}" alt="" loading="lazy" referrerpolicy="no-referrer" />`
-        : `<div class="card__img card__img--placeholder">Нет фото</div>`;
-      const desc = item.description
-        ? `<p class="card__desc">${escapeHtml(item.description)}</p>`
-        : "";
-      const top = showSource
-        ? `<div class="card__top">${sourceBlock(item.source)}<a class="card__title" href="${escapeHtml(item.link)}" target="_blank" rel="noopener">${escapeHtml(item.title)}</a></div>`
-        : `<a class="card__title card__title--solo" href="${escapeHtml(item.link)}" target="_blank" rel="noopener">${escapeHtml(item.title)}</a>`;
-      return `
-        <article class="card${showSource ? "" : " card--compact"}">
-          ${top}
-          ${photo}
-          <p class="card__price">${formatPrice(item.price)}</p>
-          ${desc}
-        </article>
-      `;
-    }
-
-    function sortItems(items, sortKey) {
-      const copy = [...items];
-      switch (sortKey) {
-        case "price_desc":
-          return copy.sort((a, b) => b.price - a.price);
-        case "title_asc":
-          return copy.sort((a, b) => a.title.localeCompare(b.title, "ru"));
-        case "title_desc":
-          return copy.sort((a, b) => b.title.localeCompare(a.title, "ru"));
-        default:
-          return copy.sort((a, b) => a.price - b.price);
-      }
-    }
-
-    function getViewMode() {
-      return document.querySelector('input[name="view"]:checked')?.value || "grid";
-    }
-
-    function renderPlatforms(items) {
-      return PLATFORMS.map((source) => {
-        const platformItems = items.filter((i) => i.source === source);
-        const listHtml = platformItems.length
-          ? platformItems.map((i) => cardHtml(i, { showSource: false })).join("")
-          : '<p class="platform-empty">Нет товаров</p>';
-        return `
-          <section class="platform-column" data-platform="${source}">
-            <header class="platform-column__head">
-              ${sourceBlock(source)}
-              <span class="platform-column__count">${platformItems.length}</span>
-            </header>
-            <div class="platform-column__list">${listHtml}</div>
-          </section>
-        `;
-      }).join("");
-    }
-
-    function renderResults() {
-      if (!cachedItems.length) {
-        resultsEl.innerHTML = "";
-        resultsEl.className = "results results--grid";
-        return;
-      }
-
-      const sorted = sortItems(cachedItems, sortEl.value);
-      const view = getViewMode();
-
-      if (view === "platforms") {
-        resultsEl.className = "results results--platforms";
-        resultsEl.innerHTML = renderPlatforms(sorted);
-        return;
-      }
-
-      resultsEl.className = `results results--${view}`;
-      resultsEl.innerHTML = sorted.map((i) => cardHtml(i)).join("");
-    }
-
-    viewRadios.forEach((r) => {
-      r.addEventListener("change", renderResults);
-    });
-
-    sortEl.addEventListener("change", renderResults);
-
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const q = queryInput.value.trim();
-      if (!q) return;
-
-      submitBtn.disabled = true;
-      statusEl.hidden = false;
-      statusEl.textContent = "Ищем на всех площадках…";
-      resultsEl.innerHTML = "";
-      cachedItems = [];
-
-      try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.detail || res.statusText);
-        }
-        cachedItems = await res.json();
-        statusEl.textContent = cachedItems.length
-          ? `Найдено: ${cachedItems.length}`
-          : "Ничего не найдено";
-        renderResults();
-      } catch (err) {
-        statusEl.textContent = "Ошибка: " + err.message;
-      } finally {
-        submitBtn.disabled = false;
-      }
-    });
-
-    const params = new URLSearchParams(location.search);
-    if (params.get("q")) {
-      queryInput.value = params.get("q");
-      form.requestSubmit();
-    }
-  </script>
+  <script src="/static/js/app.js" defer></script>
 </body>
 </html>

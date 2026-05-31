@@ -3,7 +3,8 @@ import re
 import time
 from urllib.parse import quote
 
-from models.result import ReturnResult, normalize_photo_url, parse_price_rub
+from models import ReturnResult, normalize_photo_url, parse_price_rub
+from scrappers.base import BaseBrowserScraper
 
 _PRODUCT_ID_RE = re.compile(r"-(\d+)(?:\?|/|$)")
 
@@ -102,152 +103,142 @@ def _title_from_href(href: str) -> str | None:
     return title[:1].upper() + title[1:] if len(title) >= 10 else None
 
 
-def ozon_scrape(query: str, browser):
-    page = browser.new_page()
-    page.set_viewport_size({"width": 1280, "height": 900})
+class OzonScraper(BaseBrowserScraper):
+    """Парсер для маркетплейса Ozon."""
 
-    page.on("pageerror", lambda exc: None)  # Silently ignore JS errors
+    def __init__(self):
+        super().__init__(name="ozon")
 
-    clean_query = query.strip()
-    search_url = (
-        f"https://www.ozon.ru/search/?text={quote(clean_query)}&from_global=true"
-    )
+    def scrape(self, query: str, browser) -> list[ReturnResult]:
+        page = browser.new_page()
+        page.set_viewport_size({"width": 1280, "height": 900})
+        page.on("pageerror", lambda exc: None)
 
-    try:
+        search_url = f"https://www.ozon.ru/search/?text={quote(query)}&from_global=true"
+
         try:
-            page.goto("https://www.ozon.ru/", wait_until="domcontentloaded", timeout=30000)
-            time.sleep(random.uniform(1.5, 2.5))
-
-            page.goto(search_url, wait_until="domcontentloaded", timeout=30000)
-            print("Страница Ozon загружена. Ожидаем рендеринга товаров...")
-
-            time.sleep(random.uniform(2.0, 3.0))
-        except Exception as e:
-            print(f"Ошибка загрузки страницы Ozon: {e}")
-            return []
-
-        title = page.title()
-        if "Antibot" in title or "ограничен" in title.lower():
-            print("Ozon показал антибот-страницу, результаты недоступны.")
-            page.screenshot(path="ozon_antibot_screenshot.png")
-            return []
-
-        for i in range(1, 4):
             try:
-                page.evaluate(
-                    f"window.scrollTo({{top: (document.body.scrollHeight / 3) * {i}, behavior: 'smooth'}});"
-                )
-                time.sleep(random.uniform(1.0, 1.8))
-            except:
-                break
+                page.goto("https://www.ozon.ru/", wait_until="domcontentloaded", timeout=30000)
+                time.sleep(random.uniform(1.5, 2.5))
 
-        results_root = (
-            page.query_selector('div[data-widget="searchResultsV2"]')
-            or page.query_selector('div[data-widget="tileGridDesktop"]')
-        )
-        scope = results_root or page
-
-        # Try to wait for selector, but catch connection errors
-        try:
-            scope.wait_for_selector('a[href*="/product/"]', timeout=8000, state="attached")
-        except Exception as e:
-            print(f"Timeout ожидания селектора Ozon: {e}")
-            links = scope.query_selector_all('a[href*="/product/"]')
-            if not links:
-                return []
-        else:
-            links = scope.query_selector_all('a[href*="/product/"]')
-
-        print(f"Найдено ссылок на товары: {len(links)}")
-
-        results = []
-        seen_ids: set[str] = set()
-
-        for index, link in enumerate(links):
-            try:
-                href = link.get_attribute("href")
-                if not href or "/product/" not in href:
-                    continue
-
-                product_id = _product_id_from_href(href)
-                if not product_id or product_id in seen_ids:
-                    continue
-                seen_ids.add(product_id)
-
-                container = link.evaluate_handle(
-                    """el => {
-                        return el.closest('[data-index]')
-                            || el.closest('[class*="tile"]')
-                            || el.closest('[class*="product"]')
-                            || (() => {
-                                let node = el.parentElement;
-                                for (let i = 0; i < 6 && node; i++) {
-                                    if ((node.innerText || '').includes('₽')) return node;
-                                    node = node.parentElement;
-                                }
-                                return null;
-                            })();
-                    }"""
-                ).as_element()
-
-                if not container:
-                    continue
-
-                title_text = _title_from_container(container)
-                if not title_text:
-                    title_text = _title_from_href(href)
-                if not title_text:
-                    product_id = _product_id_from_href(href)
-                    title_text = f"Товар {product_id}" if product_id else "Нет названия"
-
-                product_url = _normalize_product_url(href)
-
-                card_text = container.inner_text() or ""
-                price = _price_from_text(card_text)
-                if not price:
-                    continue
-
-                parsed_price = parse_price_rub(price)
-                if parsed_price <= 0:
-                    continue
-
-                img_url: str | None = None
-                img_element = container.query_selector("img")
-                if img_element:
-                    for attr in ("src", "data-src", "srcset"):
-                        raw = img_element.get_attribute(attr)
-                        if attr == "srcset" and raw:
-                            raw = raw.split(",")[0].strip().split(" ")[0]
-                        img_url = normalize_photo_url(raw)
-                        if img_url:
-                            break
-
-                results.append(
-                    ReturnResult(
-                        title=title_text,
-                        link=product_url,
-                        price=parsed_price,
-                        description=None,
-                        photo_url=img_url,
-                    )
-                )
-
+                page.goto(search_url, wait_until="domcontentloaded", timeout=30000)
+                print("[ozon] страница загружена. Ожидаем рендеринга товаров...")
+                time.sleep(random.uniform(2.0, 3.0))
             except Exception as e:
-                print(f"Ошибка парсинга карточки №{index + 1}: {e}")
-                continue
+                print(f"[ozon] ошибка загрузки страницы: {e}")
+                return []
 
-        print(f"Собрано уникальных товаров: {len(results)}")
-        return results
+            title = page.title()
+            if "Antibot" in title or "ограничен" in title.lower():
+                print("[ozon] обнаружена антибот-страница, результаты недоступны.")
+                page.screenshot(path="ozon_antibot_screenshot.png")
+                return []
 
-    except Exception as e:
-        print(f"Произошла ошибка при парсинге Ozon: {e}")
-        try:
-            page.screenshot(path="ozon_error_screenshot.png")
-        except:
-            pass
-        return []
-    finally:
-        try:
-            page.close()
-        except:
-            pass
+            for i in range(1, 4):
+                try:
+                    page.evaluate(
+                        f"window.scrollTo({{top: (document.body.scrollHeight / 3) * {i}, behavior: 'smooth'}});"
+                    )
+                    time.sleep(random.uniform(1.0, 1.8))
+                except:
+                    break
+
+            results_root = (
+                page.query_selector('div[data-widget="searchResultsV2"]')
+                or page.query_selector('div[data-widget="tileGridDesktop"]')
+            )
+            scope = results_root or page
+
+            try:
+                scope.wait_for_selector('a[href*="/product/"]', timeout=8000, state="attached")
+            except Exception as e:
+                print(f"[ozon] timeout ожидания селектора: {e}")
+                links = scope.query_selector_all('a[href*="/product/"]')
+                if not links:
+                    return []
+            else:
+                links = scope.query_selector_all('a[href*="/product/"]')
+
+            print(f"[ozon] найдено ссылок на товары: {len(links)}")
+            results = []
+            seen_ids: set[str] = set()
+
+            for index, link in enumerate(links):
+                try:
+                    href = link.get_attribute("href")
+                    if not href or "/product/" not in href:
+                        continue
+
+                    product_id = _product_id_from_href(href)
+                    if not product_id or product_id in seen_ids:
+                        continue
+                    seen_ids.add(product_id)
+
+                    container = link.evaluate_handle(
+                        """el => {
+                            return el.closest('[data-index]')
+                                || el.closest('[class*="tile"]')
+                                || el.closest('[class*="product"]')
+                                || (() => {
+                                    let node = el.parentElement;
+                                    for (let i = 0; i < 6 && node; i++) {
+                                        if ((node.innerText || '').includes('₽')) return node;
+                                        node = node.parentElement;
+                                    }
+                                    return null;
+                                })();
+                        }"""
+                    ).as_element()
+
+                    if not container:
+                        continue
+
+                    title_text = _title_from_container(container)
+                    if not title_text:
+                        title_text = _title_from_href(href)
+                    if not title_text:
+                        product_id = _product_id_from_href(href)
+                        title_text = f"Товар {product_id}" if product_id else "Нет названия"
+
+                    product_url = _normalize_product_url(href)
+
+                    card_text = container.inner_text() or ""
+                    price = _price_from_text(card_text)
+                    if not price:
+                        continue
+
+                    parsed_price = parse_price_rub(price)
+                    if parsed_price <= 0:
+                        continue
+
+                    img_url: str | None = None
+                    img_element = container.query_selector("img")
+                    if img_element:
+                        for attr in ("src", "data-src", "srcset"):
+                            raw = img_element.get_attribute(attr)
+                            if attr == "srcset" and raw:
+                                raw = raw.split(",")[0].strip().split(" ")[0]
+                            img_url = normalize_photo_url(raw)
+                            if img_url:
+                                break
+
+                    results.append(
+                        ReturnResult(
+                            title=title_text,
+                            link=product_url,
+                            price=parsed_price,
+                            description=None,
+                            photo_url=img_url,
+                        )
+                    )
+                except Exception as e:
+                    print(f"[ozon] ошибка парсинга карточки №{index + 1}: {e}")
+                    continue
+
+            print(f"[ozon] собрано уникальных товаров: {len(results)}")
+            return results
+        finally:
+            try:
+                page.close()
+            except:
+                pass
