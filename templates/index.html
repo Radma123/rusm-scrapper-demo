@@ -28,18 +28,19 @@
     <div class="toolbar">
       <div class="toolbar__group">
         <span class="toolbar__label">Вид:</span>
+         <label class="view-toggle">
+          <input type="radio" name="view" value="platforms" checked/>
+          По платформам
+        </label>
         <label class="view-toggle">
-          <input type="radio" name="view" value="grid" checked />
+          <input type="radio" name="view" value="grid" />
           Сетка
         </label>
         <label class="view-toggle">
           <input type="radio" name="view" value="list" />
           Список
         </label>
-        <label class="view-toggle">
-          <input type="radio" name="view" value="platforms" />
-          По платформам
-        </label>
+       
       </div>
       <div class="toolbar__group">
         <label class="toolbar__label" for="sort">Сортировка:</label>
@@ -55,7 +56,7 @@
 
   <main>
     <p id="status" class="status" hidden></p>
-    <div id="results" class="results results--grid"></div>
+    <div id="results" class="results results--platforms"></div>
   </main>
 
   <script src="/static/js/app.js" defer></script>

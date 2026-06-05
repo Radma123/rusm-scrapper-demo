@@ -139,7 +139,7 @@ function sortItems(items, sortKey) {
  * @returns {string}
  */
 function getViewMode() {
-  return document.querySelector('input[name="view"]:checked')?.value || "grid";
+  return document.querySelector('input[name="view"]:checked')?.value || "platforms";
 }
 
 /**
@@ -171,7 +171,7 @@ function renderPlatforms(items) {
 function renderResults() {
   if (!cachedItems.length) {
     resultsEl.innerHTML = "";
-    resultsEl.className = "results results--grid";
+    resultsEl.className = "results results--platforms";
     return;
   }
 
